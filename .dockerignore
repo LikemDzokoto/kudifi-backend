@@ -13,6 +13,9 @@ coverage
 .next
 out
 
+# generated
+/src/generated
+
 # production
 build
 dist
