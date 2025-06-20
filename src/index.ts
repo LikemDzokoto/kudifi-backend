@@ -1,5 +1,12 @@
+// imports
 import { Elysia, t } from "elysia";
 import swagger from "@elysiajs/swagger";
+
+// configs
+import { prisma } from "./configs";
+
+// services
+import { ThirdwebService } from "@/services";
 
 const app = new Elysia().use(
   swagger({
@@ -18,29 +25,84 @@ app.get("/", () => "Hello, World!");
 
 app.post(
   "/",
-  ({ body }) => {
+  async ({ body }) => {
     const { sessionId, serviceCode, phoneNumber, text } = body;
 
-    let response = "";
+    const user = await prisma.user.findUnique({
+      where: { phoneNumber },
+    });
 
-    if (text == "") {
-      // This is the first request. Note how we start the response with CON
-      response = `CON What would you like to check
-        1. My account
-        2. My phone number`;
-    } else if (text == "1") {
-      // Business logic for first level response
-      response = `CON Choose account information you want to view
-        1. Account number`;
-    } else if (text == "2") {
-      // Business logic for first level response
-      // This is a terminal request. Note how we start the response with END
-      response = `END Your phone number is ${phoneNumber}`;
-    } else if (text == "1*1") {
-      // This is a second level response where the user selected 1 in the first instance
-      const accountNumber = "ACC100101";
-      // This is a terminal request. Note how we start the response with END
-      response = `END Your account number is ${accountNumber}`;
+    let response = "";
+    const input = text.trim();
+
+    if (!user) {
+      switch (input) {
+        case "":
+          response = `CON Welcome to Kudifi\n1. Create wallet`;
+          break;
+
+        case "1": {
+          const wallet = await ThirdwebService.createWallet(); 
+          await prisma.user.create({
+            data: {
+              phoneNumber,
+              walletAddr: wallet.address,
+              smartWalletAddr: wallet.smartAccountAddress,
+            },
+          });
+          response = `END Wallet created:\n${wallet.address}`;
+          break;
+        }
+
+        default:
+          response = `END Invalid option.`;
+      }
+    } else {
+      switch (true) {
+        case input === "":
+          response = `CON Welcome to Kudifi\n1. View wallet\n2. Buy tokens`;
+          break;
+
+        case input === "1":
+          response = `END Your wallet address is:\n${user.walletAddr}`;
+          break;
+
+        case input === "2":
+          response = `CON Select token:\n1. USDT\n2. USDC`;
+          break;
+
+        case input === "2*1" || input === "2*2": {
+          const token = input === "2*1" ? "USDT" : "USDC";
+          response = `CON Enter amount in GHS to buy ${token}:`;
+          break;
+        }
+
+        case /^2\*(1|2)\*\d+(\.\d+)?$/.test(input): {
+          const [_, tokenOption, amountStr] = input.split("*");
+          const token = tokenOption === "1" ? "USDT" : "USDC";
+          const amount = Number(amountStr);
+
+          if (isNaN(amount) || amount <= 0) {
+            response = `END Invalid amount.`;
+          } else {
+            await prisma.purchase.create({
+              data: {
+                userId: user.id,
+                provider: "MTN",
+                phoneNumber,
+                tokenSymbol: token,
+                amount,
+                status: "PENDING",
+              },
+            });
+            response = `END Your purchase of GHS ${amount} ${token} is being processed.`;
+          }
+          break;
+        }
+
+        default:
+          response = `END Invalid option.`;
+      }
     }
 
     return response;

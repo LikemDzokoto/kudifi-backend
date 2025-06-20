@@ -12,6 +12,9 @@
 /.next/
 /out/
 
+# generated
+/src/generated
+
 # production
 /build
 /dist
@@ -43,3 +46,4 @@ yarn-error.log*
 **/*.log
 package-lock.json
 **/*.bun
+/generated/prisma

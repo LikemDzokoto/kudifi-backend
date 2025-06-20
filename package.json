@@ -8,7 +8,10 @@
   },
   "dependencies": {
     "@elysiajs/swagger": "^1.3.0",
+    "@prisma/client": "^6.10.1",
+    "@prisma/extension-accelerate": "^2.0.1",
     "elysia": "latest",
+    "prisma": "^6.10.1",
     "thirdweb": "^5.103.1"
   },
   "devDependencies": {
