@@ -8,7 +8,8 @@
   },
   "dependencies": {
     "@elysiajs/swagger": "^1.3.0",
-    "elysia": "latest"
+    "elysia": "latest",
+    "thirdweb": "^5.103.1"
   },
   "devDependencies": {
     "bun-types": "latest"
