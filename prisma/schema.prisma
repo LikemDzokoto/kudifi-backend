@@ -19,6 +19,7 @@ model User {
   phoneNumber     String     @unique
   walletAddr      String     @unique
   smartWalletAddr String?    @unique
+  pinHash         String?
   createdAt       DateTime   @default(now())
   purchases       Purchase[]
 }
