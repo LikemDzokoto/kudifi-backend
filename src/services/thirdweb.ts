@@ -5,6 +5,8 @@ import {
   toTokens,
   getContract,
   readContract,
+  getRpcClient,
+  eth_getBalance,
   prepareTransaction,
   prepareContractCall,
 } from "thirdweb";
@@ -42,24 +44,16 @@ export class ThirdwebService {
     const token = supportedTokensMap[tokenSymbol];
 
     if (tokenSymbol === "APE") {
-      // get native token balance and early return
-      const resonse = await engineApiClient
-        .post(`/read/balance`, {
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            chainId: apeChainCurtis.id.toString(),
-            address: wallet.address,
-          }),
-        })
-        .json<{
-          result: {
-            balance: string;
-          };
-        }>();
+      const rpcRequest = getRpcClient({
+        client: thirdwebClient,
+        chain: apeChainCurtis,
+      });
+      const balance = await eth_getBalance(rpcRequest, {
+        address: wallet.address,
+        blockTag: "latest",
+      });
 
-      return toTokens(BigInt(resonse.result.balance), token.decimals);
+      return toTokens(balance, token.decimals);
     }
 
     // else get ERC20 token balance
