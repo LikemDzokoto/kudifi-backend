@@ -15,7 +15,8 @@ import { env, thirdwebClient, engineApiClient } from "@/configs";
 // constants
 import { supportedTokensMap, apeChainCurtis } from "@/constants";
 
-type TokenSymbol = "APE" | "USDT" | "USDC";
+// types
+type TokenSymbol = keyof typeof supportedTokensMap;
 
 export class ThirdwebService {
   public static async createWallet() {
@@ -122,7 +123,7 @@ export class ThirdwebService {
     });
 
     // prepare the transaction
-    const transaction = await prepareContractCall({
+    const transaction = prepareContractCall({
       contract,
       method: "function transfer(address to, uint256 amount) returns (bool)",
       params: [to, amount],
@@ -138,7 +139,7 @@ export class ThirdwebService {
       client: thirdwebClient,
       transactionId,
     });
-    
+
     return transactionHash;
   }
 }

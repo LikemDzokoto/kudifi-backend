@@ -20,13 +20,13 @@ export const supportedTokens = [
     symbol: "USDC",
     decimals: 6,
   },
-];
+] as const;
 
 export const supportedTokensMap = {
   APE: supportedTokens[0],
   USDT: supportedTokens[1],
   USDC: supportedTokens[2],
-};
+} as const;
 
 export const apeChainCurtis = defineChain({
   id: 33111,
