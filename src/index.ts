@@ -5,7 +5,10 @@ import swagger from "@elysiajs/swagger";
 import { Address, toUnits } from "thirdweb";
 
 // configs
-import { prisma } from "./configs";
+import { prisma } from "@/configs";
+
+// helpers
+import { sanitizePhoneNumber } from "@/helpers";
 
 // services
 import { ThirdwebService, PriceService } from "@/services";
@@ -133,7 +136,7 @@ app.post(
           supportedTokensMap[token as keyof typeof supportedTokensMap];
         const amount = Number(amountStr);
         const recipient = await prisma.user.findUnique({
-          where: { phoneNumber: recipientPhone },
+          where: { phoneNumber: sanitizePhoneNumber(recipientPhone) },
         });
 
         if (!recipient) {

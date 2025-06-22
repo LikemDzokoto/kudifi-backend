@@ -12,7 +12,7 @@ import {
 } from "thirdweb";
 
 // configs
-import { env, thirdwebClient, engineApiClient } from "@/configs";
+import { env, thirdwebClient } from "@/configs";
 
 // constants
 import { supportedTokensMap, apeChainCurtis } from "@/constants";
