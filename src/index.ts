@@ -24,9 +24,23 @@ const TEAM_WALLET_ADDRESS = "0xBf5D88BFDEE112DA8c980781cafB20cE8BFF81CB";
 
 // Valid Ghanaian mobile prefixes
 const GHANA_MOBILE_PREFIXES = [
-  "020", "023", "024", "025", "026", "027", "028", "029",
-  "050", "053", "054", "055", "057", "059",
-  "070", "071", "077"
+  "020",
+  "023",
+  "024",
+  "025",
+  "026",
+  "027",
+  "028",
+  "029",
+  "050",
+  "053",
+  "054",
+  "055",
+  "057",
+  "059",
+  "070",
+  "071",
+  "077",
 ];
 
 const isValidGhanaianPhoneNumber = (phone: string): boolean => {
@@ -59,7 +73,7 @@ app.post(
     const { phoneNumber, text } = body;
     const input = text.trim();
     const cleanPhone = sanitizePhoneNumber(phoneNumber);
-    const user = await prisma.user.findUnique({
+    let user = await prisma.user.findUnique({
       where: { phoneNumber: cleanPhone },
     });
 
@@ -67,28 +81,28 @@ app.post(
 
     try {
       if (!user) {
-        switch (input) {
-          case "":
+        switch (true) {
+          case input === "":
             response = `CON Welcome to Kudifi\n1. Create wallet`;
             break;
 
-          case "1": {
+          case input === "1": {
             const wallet = await ThirdwebService.createWallet();
-            await prisma.user.create({
+            user = await prisma.user.create({
               data: {
                 phoneNumber: cleanPhone,
                 walletAddr: wallet.address,
                 smartWalletAddr: wallet.smartAccountAddress,
               },
             });
-            response = `CON Wallet created:\n${wallet.address}\nSet a 4-digit PIN to continue:`;
+            response = `END Wallet created:\n${
+              user.smartWalletAddr || user.walletAddr
+            }\n`;
             break;
           }
 
           default:
-            response = /^\d{4}$/.test(input)
-              ? `END Please create a wallet first.`
-              : `END Invalid option.`;
+            response = `END Invalid option.`;
         }
 
         return response;
@@ -148,7 +162,7 @@ app.post(
 
         case /^1\*[1-3]\*\d{10,13}$/.test(input): {
           const [_, tokenOpt, rawRecipientPhone] = input.split("*");
-          
+
           if (!isValidGhanaianPhoneNumber(rawRecipientPhone)) {
             response = `END Invalid Ghanaian phone number. Please use format: 054xxxxxxxx.`;
             break;
@@ -181,7 +195,8 @@ app.post(
         }
 
         case /^1\*[1-3]\*\d{10,13}\*\d+(\.\d+)?\*\d{4}$/.test(input): {
-          const [_, tokenOpt, rawRecipientPhone, amountStr, pin] = input.split("*");
+          const [_, tokenOpt, rawRecipientPhone, amountStr, pin] =
+            input.split("*");
           const tokenMap = { "1": "APE", "2": "USDT", "3": "USDC" } as const;
           const token = tokenMap[tokenOpt as keyof typeof tokenMap];
           const selectedToken = supportedTokensMap[token];
@@ -216,7 +231,9 @@ app.post(
           const validPin = await bcrypt.compare(pin, user.pinHash!);
           if (!validPin) {
             await redis.setex(retryKey, 3600, (retryCount + 1).toString());
-            return `END Incorrect PIN. Attempt ${retryCount + 1} of ${MAX_RETRIES}`;
+            return `END Incorrect PIN. Attempt ${
+              retryCount + 1
+            } of ${MAX_RETRIES}`;
           }
 
           await redis.del(retryKey);
@@ -392,7 +409,9 @@ app.post(
           const validPin = await bcrypt.compare(pin, user.pinHash!);
           if (!validPin) {
             await redis.setex(retryKey, 3600, (retryCount + 1).toString());
-            return `END Incorrect PIN. Attempt ${retryCount + 1} of ${MAX_RETRIES}`;
+            return `END Incorrect PIN. Attempt ${
+              retryCount + 1
+            } of ${MAX_RETRIES}`;
           }
 
           await redis.del(retryKey);
