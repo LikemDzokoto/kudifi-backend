@@ -1,4 +1,9 @@
 export const sanitizePhoneNumber = (phoneNumber: string): string => {
+  if (phoneNumber.startsWith("+233")) {
+    // If it already starts with the Ghana country code, return it as is
+    return phoneNumber;
+  }
+
   // Remove all non-digit characters
   const sanitized = phoneNumber.replace(/\D/g, "");
 
