@@ -1,4 +1,5 @@
 // imports
+import { curtis } from "viem/chains";
 import { defineChain, NATIVE_TOKEN_ADDRESS } from "thirdweb";
 
 export const supportedTokens = [
@@ -29,24 +30,5 @@ export const supportedTokensMap = {
 } as const;
 
 export const apeChainCurtis = defineChain({
-  id: 33111,
-  chainId: 33111,
-  chain: "ape-chain-curtis",
-  slug: "ape-chain-curtis",
-  networkId: 33111,
-  name: "Ape Chain Curtis",
-  nativeCurrency: supportedTokens[0],
-  rpc: "https://curtis.rpc.caldera.xyz/http",
-  rpcUrls: {
-    default: {
-      http: ["https://curtis.rpc.caldera.xyz/http"],
-      webSocket: ["wss://curtis.rpc.caldera.xyz/ws"],
-    },
-  },
-  blockExplorers: [
-    {
-      name: "Ape Chain Nitro Curtis Explorer",
-      url: "https://curtis.explorer.caldera.xyz",
-    },
-  ],
+  ...curtis,
 });
