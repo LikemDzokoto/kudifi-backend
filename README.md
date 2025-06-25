@@ -1,6 +1,6 @@
 # Kudifi Backend
 
-A backend service for Kudifi, built with Elysia and Bun, providing blockchain wallet management, token transfers, and mobile money integration for users in Ghana. The backend exposes a USSD-compatible API endpoint, designed for integration with AfricaStaking's USSD callback system.
+A backend service for Kudifi, built with Elysia and Bun, providing blockchain wallet management, token transfers, and mobile money integration for users in Ghana. The backend exposes a USSD-compatible API endpoint, designed for integration with Africastalking's USSD callback system.
 
 ## Backend Architecture
 
@@ -11,7 +11,7 @@ A backend service for Kudifi, built with Elysia and Bun, providing blockchain wa
   The main entry point is `src/index.ts`, which sets up the Elysia app, routes, and integrates Swagger for API documentation.
 
 - **USSD Callback Endpoint:**  
-  The backend exposes a POST `/` endpoint that processes USSD requests from AfricaStaking. This endpoint handles user registration, wallet creation, PIN setup, token transfers, balance checks, token purchases, and more, all via USSD menu flows. The endpoint expects a JSON body with `sessionId`, `serviceCode`, `phoneNumber`, and `text` fields, and returns a USSD-compatible response string.
+  The backend exposes a POST `/` endpoint that processes USSD requests from Africastalking. This endpoint handles user registration, wallet creation, PIN setup, token transfers, balance checks, token purchases, and more, all via USSD menu flows. The endpoint expects a JSON body with `sessionId`, `serviceCode`, `phoneNumber`, and `text` fields, and returns a USSD-compatible response string.
 
 - **Database:**  
   Uses PostgreSQL, managed via Prisma ORM (`prisma/schema.prisma`).  
@@ -21,7 +21,7 @@ A backend service for Kudifi, built with Elysia and Bun, providing blockchain wa
   Integrates Upstash Redis for caching (see `src/configs/redis.ts`).
 
 - **Third-party Integrations:**  
-  - **Thirdweb:** For blockchain wallet and token operations (`src/services/thirdweb.ts`, `src/configs/thirdweb.ts`).
+  - **Thirdweb:** For blockchain wallet and token operations (`src/services/thirdweb.ts`, `src/configs/thirdweb.ts`) with account abstraction and gas sponserships.
   - **Pyth Network:** For crypto price feeds (`src/services/price.ts`).
   - **Currency API:** For fiat exchange rates.
 

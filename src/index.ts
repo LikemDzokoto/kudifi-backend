@@ -24,23 +24,9 @@ const TEAM_WALLET_ADDRESS = "0xBf5D88BFDEE112DA8c980781cafB20cE8BFF81CB";
 
 // Valid Ghanaian mobile prefixes
 const GHANA_MOBILE_PREFIXES = [
-  "020",
-  "023",
-  "024",
-  "025",
-  "026",
-  "027",
-  "028",
-  "029",
-  "050",
-  "053",
-  "054",
-  "055",
-  "057",
-  "059",
-  "070",
-  "071",
-  "077",
+  "020", "023", "024", "025", "026", "027", "028", "029",
+  "050", "053", "054", "055", "057", "059",
+  "070", "071", "077",
 ];
 
 const isValidGhanaianPhoneNumber = (phone: string): boolean => {
@@ -50,6 +36,56 @@ const isValidGhanaianPhoneNumber = (phone: string): boolean => {
   }
   const prefix = cleanPhone.slice(0, 3);
   return GHANA_MOBILE_PREFIXES.includes(prefix);
+};
+
+const formatPhoneNumber = (phone: string): string => {
+  return phone.replace(/(\d{3})(\d{3})(\d{4})/, "$1 $2 $3");
+};
+
+const getTokenName = (option: string): string => {
+  const tokens = { "1": "APE", "2": "USDT", "3": "USDC" };
+  return tokens[option as keyof typeof tokens] || "Unknown";
+};
+
+const getTokenSymbol = (option: string): TokenSymbol => {
+  const tokens = { "1": TokenSymbol.APE, "2": TokenSymbol.USDT, "3": TokenSymbol.USDC };
+  return tokens[option as keyof typeof tokens];
+};
+
+const buildMainMenu = (): string => {
+  return `CON Welcome to Kudifi
+1. Send tokens
+2. Check balance
+3. Buy tokens
+4. View Rewards
+5. View Wallet Address
+6. Withdraw to Momo
+7. Donate to Team`;
+};
+
+const buildTokenMenu = (): string => {
+  return `CON Choose token:
+1. APE
+2. USDT
+3. USDC`;
+};
+
+const handleError = (message: string): string => {
+  return `END ❌ ${message}`;
+};
+
+const validateAmount = (amountStr: string): { isValid: boolean; amount?: number; error?: string } => {
+  const amount = Number(amountStr);
+  if (isNaN(amount)) {
+    return { isValid: false, error: "Please enter a valid number" };
+  }
+  if (amount <= 0) {
+    return { isValid: false, error: "Amount must be greater than 0" };
+  }
+  if (amount > 1000000) {
+    return { isValid: false, error: "Amount too large" };
+  }
+  return { isValid: true, amount };
 };
 
 const app = new Elysia().use(
@@ -73,138 +109,239 @@ app.post(
     const { phoneNumber, text } = body;
     const input = text.trim();
     const cleanPhone = sanitizePhoneNumber(phoneNumber);
-    let user = await prisma.user.findUnique({
-      where: { phoneNumber: cleanPhone },
-    });
-
+    
     let response = "";
-
     try {
+      let user = await prisma.user.findUnique({
+        where: { phoneNumber: cleanPhone },
+      });
+
+      // New user flow
       if (!user) {
         switch (true) {
           case input === "":
-            response = `CON Welcome to Kudifi\n1. Create wallet`;
+            response = `CON Welcome to Kudifi! 🚀
+You need to create a wallet to get started.
+1. Create wallet`;
             break;
 
           case input === "1": {
-            const wallet = await ThirdwebService.createWallet();
-            user = await prisma.user.create({
-              data: {
-                phoneNumber: cleanPhone,
-                walletAddr: wallet.address,
-                smartWalletAddr: wallet.smartAccountAddress,
-              },
-            });
-            response = `END Wallet created:\n${
-              user.smartWalletAddr || user.walletAddr
-            }\n`;
+            try {
+              const wallet = await ThirdwebService.createWallet();
+              user = await prisma.user.create({
+                data: {
+                  phoneNumber: cleanPhone,
+                  walletAddr: wallet.address,
+                  smartWalletAddr: wallet.smartAccountAddress,
+                },
+              });
+              response = `CON ✅ Wallet created successfully!
+Your wallet: ${(user.smartWalletAddr || user.walletAddr).slice(0, 10)}...
+
+Now set a 4-digit PIN for security:`;
+            } catch (error) {
+              response = handleError("Failed to create wallet. Please try again.");
+            }
             break;
           }
 
           default:
-            response = `END Invalid option.`;
+            response = handleError("Invalid option. Please try again.");
         }
-
         return response;
       }
 
+      // PIN setup flow
       if (!user.pinHash) {
-        if (/^\d{4}$/.test(input)) {
-          const hash = await bcrypt.hash(input, 10);
-          await prisma.user.update({
-            where: { phoneNumber: cleanPhone },
-            data: { pinHash: hash },
-          });
-          response = `END PIN set successfully. You can now use Kudifi.`;
+        if (input === "1") {
+          response = `CON Set a 4-digit PIN to secure your wallet:`;
+        } else if (/^\d{4}$/.test(input)) {
+          try {
+            const hash = await bcrypt.hash(input, 10);
+            await prisma.user.update({
+              where: { phoneNumber: cleanPhone },
+              data: { pinHash: hash },
+            });
+            response = `END ✅ PIN set successfully! You can now use Kudifi securely.`;
+          } catch (error) {
+            response = handleError("Failed to set PIN. Please try again.");
+          }
+        } else if (input.length > 0) {
+          response = `CON ❌ PIN must be exactly 4 digits.
+Please enter a 4-digit PIN:`;
         } else {
           response = `CON Set a 4-digit PIN to proceed:`;
         }
-
         return response;
       }
 
+      // Main application flow
       switch (true) {
         case input === "":
-          response = `CON Welcome to Kudifi
-1. Send tokens
-2. Check balance
-3. Buy tokens
-4. View Rewards
-5. View Wallet Address
-6. Withdraw to Momo
-7. Donate to Team`;
+          response = buildMainMenu();
           break;
 
+        // Check Balance Flow
         case input === "2":
-          response = `CON Choose token:\n1. APE\n2. USDT\n3. USDC`;
+          response = buildTokenMenu();
           break;
 
-        case input === "2*1" || input === "2*2" || input === "2*3": {
-          const token =
-            input === "2*1" ? "APE" : input === "2*2" ? "USDT" : "USDC";
-          const balance = await ThirdwebService.getTokenBalance(
-            (user.smartWalletAddr || user.walletAddr) as Address,
-            token
-          );
-          const rate = await PriceService.getTokenPriceInGHS(token);
-          const value = (Number(balance) * rate).toFixed(2);
-          response = `END Your ${token} balance is ${balance} (~GHS ${value})`;
+        case ["2*1", "2*2", "2*3"].includes(input): {
+          const tokenOpt = input.split("*")[1];
+          const token = getTokenName(tokenOpt);
+          try {
+            const balance = await ThirdwebService.getTokenBalance(
+              (user.smartWalletAddr || user.walletAddr) as Address,
+              token as TokenSymbol
+            );
+            const rate = await PriceService.getTokenPriceInGHS(token);
+            const value = (Number(balance) * rate).toFixed(2);
+            response = `END 💰 Your ${token} Balance
+Amount: ${balance} ${token}
+Value: ~GHS ${value}
+
+Rate: 1 ${token} = GHS ${rate}`;
+          } catch (error) {
+            response = handleError(`Failed to fetch ${token} balance. Please try again.`);
+          }
           break;
         }
 
+        // Send Tokens Flow
         case input === "1":
-          response = `CON Choose token:\n1. APE\n2. USDT\n3. USDC`;
+          response = buildTokenMenu();
           break;
 
-        case /^1\*[1-3]$/.test(input):
-          response = `CON Enter recipient phone number (e.g. 054xxxxxxxx):`;
+        case /^1\*[1-3]$/.test(input): {
+          const tokenOpt = input.split("*")[1];
+          const token = getTokenName(tokenOpt);
+          response = `CON 💸 Send ${token} Tokens
+Enter recipient phone number:
+(Format: 054xxxxxxxx)`;
           break;
+        }
 
-        case /^1\*[1-3]\*\d{10,13}$/.test(input): {
+        case /^1\*[1-3]\*\d{10}$/.test(input): {
           const [_, tokenOpt, rawRecipientPhone] = input.split("*");
+          const token = getTokenName(tokenOpt);
 
           if (!isValidGhanaianPhoneNumber(rawRecipientPhone)) {
-            response = `END Invalid Ghanaian phone number. Please use format: 054xxxxxxxx.`;
+            response = `END ❌ Invalid phone number format
+Please use: 054xxxxxxxx
+
+Valid prefixes: ${GHANA_MOBILE_PREFIXES.slice(0, 8).join(", ")}...`;
             break;
           }
 
-          response = `CON Enter amount to send:`;
+          const formattedPhone = formatPhoneNumber(rawRecipientPhone);
+          response = `CON 📱 Confirm Recipient
+Phone: ${formattedPhone}
+Token: ${token}
+
+1. Confirm & continue
+2. Re-enter phone number`;
           break;
         }
 
-        case /^1\*[1-3]\*\d{10,13}\*\d+(\.\d+)?$/.test(input): {
-          const [_, tokenOpt, rawRecipient, amountStr] = input.split("*");
-          const token =
-            tokenOpt === "1" ? "APE" : tokenOpt === "2" ? "USDT" : "USDC";
-          const rate = await PriceService.getTokenPriceInGHS(token);
-          const amount = Number(amountStr);
-          const value = (amount * rate).toFixed(2);
+        case /^1\*[1-3]\*\d{10}\*2$/.test(input): {
+          const [_, tokenOpt] = input.split("*");
+          const token = getTokenName(tokenOpt);
+          response = `CON 💸 Send ${token} Tokens
+Enter recipient phone number:
+(Format: 054xxxxxxxx)`;
+          break;
+        }
 
-          // Check balance before proceeding
-          const balance = await ThirdwebService.getTokenBalance(
-            (user.smartWalletAddr || user.walletAddr) as Address,
-            token
-          );
-          if (Number(balance) < amount) {
-            response = `END Not enough ${token} tokens to fulfill transaction.`;
+        case /^1\*[1-3]\*\d{10}\*1$/.test(input): {
+          const [_, tokenOpt, rawRecipientPhone] = input.split("*");
+          const token = getTokenName(tokenOpt);
+          
+          try {
+            const balance = await ThirdwebService.getTokenBalance(
+              (user.smartWalletAddr || user.walletAddr) as Address,
+              token as TokenSymbol
+            );
+            response = `CON 💰 Send ${token}
+To: ${formatPhoneNumber(rawRecipientPhone)}
+Available: ${balance} ${token}
+
+Enter amount to send:`;
+          } catch (error) {
+            response = handleError("Failed to check balance. Please try again.");
+          }
+          break;
+        }
+
+        case /^1\*[1-3]\*\d{10}\*1\*[\d.]+$/.test(input): {
+          const [_, tokenOpt, rawRecipientPhone, , amountStr] = input.split("*");
+          const token = getTokenName(tokenOpt);
+          const validation = validateAmount(amountStr);
+
+          if (!validation.isValid) {
+            response = `CON ❌ ${validation.error}
+Please enter a valid amount:`;
             break;
           }
 
-          response = `CON Sending ${amount} ${token} (~GHS ${value})\nEnter your 4-digit PIN:`;
+          try {
+            const balance = await ThirdwebService.getTokenBalance(
+              (user.smartWalletAddr || user.walletAddr) as Address,
+              token as TokenSymbol
+            );
+            
+            if (Number(balance) < validation.amount!) {
+              response = `CON ❌ Insufficient Balance
+Available: ${balance} ${token}
+Requested: ${validation.amount} ${token}
+
+1. Enter different amount`;
+              break;
+            }
+
+            const rate = await PriceService.getTokenPriceInGHS(token);
+            const value = (validation.amount! * rate).toFixed(2);
+
+            response = `CON 🔒 Confirm Transaction
+To: ${formatPhoneNumber(rawRecipientPhone)}
+Amount: ${validation.amount} ${token}
+Value: ~GHS ${value}
+
+Enter your 4-digit PIN:`;
+          } catch (error) {
+            response = handleError("Failed to verify transaction. Please try again.");
+          }
           break;
         }
 
-        case /^1\*[1-3]\*\d{10,13}\*\d+(\.\d+)?\*\d{4}$/.test(input): {
-          const [_, tokenOpt, rawRecipientPhone, amountStr, pin] =
-            input.split("*");
-          const tokenMap = { "1": "APE", "2": "USDT", "3": "USDC" } as const;
-          const token = tokenMap[tokenOpt as keyof typeof tokenMap];
-          const selectedToken = supportedTokensMap[token];
-          const amount = Number(amountStr);
+        case /^1\*[1-3]\*\d{10}\*1\*[\d.]+\*1$/.test(input): {
+          const [_, tokenOpt, rawRecipientPhone, ,] = input.split("*");
+          const token = getTokenName(tokenOpt);
+          
+          try {
+            const balance = await ThirdwebService.getTokenBalance(
+              (user.smartWalletAddr || user.walletAddr) as Address,
+              token as TokenSymbol
+            );
+            response = `CON 💰 Send ${token}
+To: ${formatPhoneNumber(rawRecipientPhone)}
+Available: ${balance} ${token}
+
+Enter amount to send:`;
+          } catch (error) {
+            response = handleError("Failed to check balance. Please try again.");
+          }
+          break;
+        }
+
+        case /^1\*[1-3]\*\d{10}\*1\*[\d.]+\*\d{4}$/.test(input): {
+          const [_, tokenOpt, rawRecipientPhone, , amountStr, pin] = input.split("*");
+          const token = getTokenName(tokenOpt);
+          const selectedToken = supportedTokensMap[token as TokenSymbol];
+          const validation = validateAmount(amountStr);
           const recipientPhone = sanitizePhoneNumber(rawRecipientPhone);
 
-          if (!isValidGhanaianPhoneNumber(rawRecipientPhone)) {
-            response = `END Invalid phone number. Please use format: 054xxxxxxxx.`;
+          if (!validation.isValid) {
+            response = handleError(validation.error!);
             break;
           }
 
@@ -212,227 +349,344 @@ app.post(
           const retryCount = parseInt((await redis.get(retryKey)) || "0");
 
           if (retryCount >= MAX_RETRIES) {
-            return `END Too many incorrect PIN attempts. Try again later.`;
+            response = handleError("Too many incorrect PIN attempts. Try again later.");
+            break;
           }
 
-          if (isNaN(amount) || amount <= 0) {
-            return `END Invalid amount.`;
+          try {
+            // Verify balance again
+            const balance = await ThirdwebService.getTokenBalance(
+              (user.smartWalletAddr || user.walletAddr) as Address,
+              token as TokenSymbol
+            );
+            
+            if (Number(balance) < validation.amount!) {
+              response = handleError(`Insufficient ${token} balance for transaction.`);
+              break;
+            }
+
+            // Verify PIN
+            const validPin = await bcrypt.compare(pin, user.pinHash!);
+            if (!validPin) {
+              await redis.setex(retryKey, 3600, (retryCount + 1).toString());
+              response = handleError(`Incorrect PIN. Attempt ${retryCount + 1} of ${MAX_RETRIES}`);
+              break;
+            }
+
+            await redis.del(retryKey);
+
+            // Find or create recipient
+            let recipient = await prisma.user.findUnique({
+              where: { phoneNumber: recipientPhone },
+            });
+
+            if (!recipient) {
+              const wallet = await ThirdwebService.createWallet();
+              recipient = await prisma.user.create({
+                data: {
+                  phoneNumber: recipientPhone,
+                  walletAddr: wallet.address,
+                  smartWalletAddr: wallet.smartAccountAddress,
+                },
+              });
+            }
+
+            // Execute transaction
+            await ThirdwebService.sendToken({
+              from: (user.smartWalletAddr || user.walletAddr) as Address,
+              to: (recipient.smartWalletAddr || recipient.walletAddr) as Address,
+              tokenSymbol: selectedToken.symbol,
+              amount: toUnits(validation.amount!.toString(), selectedToken.decimals),
+            });
+
+            response = `END ✅ Transaction Successful!
+Sent: ${validation.amount} ${token}
+To: ${formatPhoneNumber(rawRecipientPhone)}
+
+Transaction completed successfully.`;
+          } catch (error) {
+            console.error("Send token error:", error);
+            response = handleError("Transaction failed. Please try again.");
+          }
+          break;
+        }
+
+        // Buy Tokens Flow
+        case input === "3":
+          response = buildTokenMenu();
+          break;
+
+        case ["3*1", "3*2", "3*3"].includes(input): {
+          const tokenOpt = input.split("*")[1];
+          const token = getTokenName(tokenOpt);
+          try {
+            const rate = await PriceService.getTokenPriceInGHS(token);
+            response = `CON 💳 Buy ${token} Tokens
+Rate: 1 ${token} = GHS ${rate}
+
+Enter amount in GHS:`;
+          } catch (error) {
+            response = handleError("Failed to get current rates. Please try again.");
+          }
+          break;
+        }
+
+        case /^3\*[1-3]\*[\d.]+$/.test(input): {
+          const [_, tokenOpt, amountStr] = input.split("*");
+          const token = getTokenName(tokenOpt);
+          const validation = validateAmount(amountStr);
+
+          if (!validation.isValid) {
+            response = `CON ❌ ${validation.error}
+Please enter amount in GHS:`;
+            break;
           }
 
-          // Double-check balance before PIN verification
-          const balance = await ThirdwebService.getTokenBalance(
-            (user.smartWalletAddr || user.walletAddr) as Address,
-            token
-          );
-          if (Number(balance) < amount) {
-            return `END Not enough ${token} tokens to fulfill transaction.`;
+          try {
+            const rate = await PriceService.getTokenPriceInGHS(token);
+            const tokensToReceive = (validation.amount! / rate).toFixed(6);
+            
+            response = `CON 💳 Confirm Purchase
+Amount: GHS ${validation.amount}
+Rate: 1 ${token} = GHS ${rate}
+You'll receive: ${tokensToReceive} ${token}
+
+1. Confirm purchase
+2. Enter different amount`;
+          } catch (error) {
+            response = handleError("Failed to calculate purchase. Please try again.");
+          }
+          break;
+        }
+
+        case /^3\*[1-3]\*[\d.]+\*2$/.test(input): {
+          const [_, tokenOpt] = input.split("*");
+          const token = getTokenName(tokenOpt);
+          try {
+            const rate = await PriceService.getTokenPriceInGHS(token);
+            response = `CON 💳 Buy ${token} Tokens
+Rate: 1 ${token} = GHS ${rate}
+
+Enter amount in GHS:`;
+          } catch (error) {
+            response = handleError("Failed to get current rates. Please try again.");
+          }
+          break;
+        }
+
+        case /^3\*[1-3]\*[\d.]+\*1$/.test(input): {
+          const [_, tokenOpt, amountStr] = input.split("*");
+          const token = getTokenSymbol(tokenOpt);
+          const validation = validateAmount(amountStr);
+
+          if (!validation.isValid) {
+            response = handleError(validation.error!);
+            break;
           }
 
-          const validPin = await bcrypt.compare(pin, user.pinHash!);
-          if (!validPin) {
-            await redis.setex(retryKey, 3600, (retryCount + 1).toString());
-            return `END Incorrect PIN. Attempt ${
-              retryCount + 1
-            } of ${MAX_RETRIES}`;
-          }
-
-          await redis.del(retryKey);
-
-          let recipient = await prisma.user.findUnique({
-            where: { phoneNumber: recipientPhone },
-          });
-
-          if (!recipient) {
-            const wallet = await ThirdwebService.createWallet();
-            recipient = await prisma.user.create({
+          try {
+            await prisma.purchase.create({
               data: {
-                phoneNumber: recipientPhone,
-                walletAddr: wallet.address,
-                smartWalletAddr: wallet.smartAccountAddress,
+                userId: user.id,
+                provider: "MTN",
+                phoneNumber,
+                tokenSymbol: token,
+                amount: validation.amount!,
+                status: "PENDING",
               },
             });
+
+            response = `END ✅ Purchase Initiated
+Amount: GHS ${validation.amount}
+Token: ${getTokenName(tokenOpt)}
+Status: Processing
+
+You'll receive your tokens shortly.`;
+          } catch (error) {
+            response = handleError("Failed to process purchase. Please try again.");
           }
-
-          await ThirdwebService.sendToken({
-            from: (user.smartWalletAddr || user.walletAddr) as Address,
-            to: (recipient.smartWalletAddr || recipient.walletAddr) as Address,
-            tokenSymbol: selectedToken.symbol,
-            amount: toUnits(amount.toString(), selectedToken.decimals),
-          });
-
-          response = `END Sent ${amount} ${token} to ${recipientPhone}`;
-          break;
-        }
-
-        case input === "3":
-          response = `CON Select token:\n1. APE\n2. USDT\n3. USDC`;
-          break;
-
-        case input === "3*1" || input === "3*2" || input === "3*3": {
-          const token =
-            input === "3*1" ? "APE" : input === "3*2" ? "USDT" : "USDC";
-          response = `CON Enter amount in GHS to buy ${token}:`;
-          break;
-        }
-
-        case /^3\*[1-3]\*\d+(\.\d+)?$/.test(input): {
-          const [_, tokenOpt, amountStr] = input.split("*");
-          const tokenMap = {
-            "1": TokenSymbol.APE,
-            "2": TokenSymbol.USDT,
-            "3": TokenSymbol.USDC,
-          };
-          const token = tokenMap[tokenOpt as keyof typeof tokenMap];
-          const amount = Number(amountStr);
-
-          if (isNaN(amount) || amount <= 0) {
-            response = `END Invalid amount.`;
-          } else {
-            const rate = await PriceService.getTokenPriceInGHS(token);
-            const tokensToReceive = (amount / rate).toFixed(2);
-            response = `CON Rate: 1 ${token} = ${rate} GHS\nYou’ll get ${tokensToReceive} ${token}.\n1. Confirm\n2. Cancel`;
-          }
-          break;
-        }
-
-        case /^3\*[1-3]\*\d+(\.\d+)?\*1$/.test(input): {
-          const [_, tokenOpt, amountStr] = input.split("*");
-          const tokenMap = {
-            "1": TokenSymbol.APE,
-            "2": TokenSymbol.USDT,
-            "3": TokenSymbol.USDC,
-          };
-          const token = tokenMap[tokenOpt as keyof typeof tokenMap];
-          const amount = Number(amountStr);
-
-          await prisma.purchase.create({
-            data: {
-              userId: user.id,
-              provider: "MTN",
-              phoneNumber,
-              tokenSymbol: token,
-              amount,
-              status: "PENDING",
-            },
-          });
-
-          response = `END Your purchase of GHS ${amount} ${token} is being processed.`;
-          break;
-        }
-
-        case /^3\*[1-3]\*\d+(\.\d+)?\*2$/.test(input): {
-          response = `END Purchase cancelled.`;
           break;
         }
 
         // View Rewards
-        case input === "4": {
-          response = `END Coming soon`;
+        case input === "4":
+          response = `END 🎁 Rewards System
+Coming soon! 
+
+Stay tuned for exciting rewards and cashback opportunities.`;
           break;
-        }
 
         // View Wallet Address
-        case input === "5": {
+        case input === "5":
           const walletAddress = user.smartWalletAddr || user.walletAddr;
-          response = `END Your Wallet Address:\n${walletAddress}`;
+          response = `END 👛 Your Wallet Address
+${walletAddress}
+
+You can share this address to receive tokens from external wallets.`;
           break;
-        }
 
         // Withdraw to Momo
-        case input === "6": {
-          response = `END Coming soon`;
+        case input === "6":
+          response = `END 📱 Mobile Money Withdrawal
+Coming soon!
+
+This feature will allow you to withdraw your tokens directly to your mobile money account.`;
+          break;
+
+        // Donate to Team Flow
+        case input === "7":
+          response = `CON ❤️ Support Our Team
+Choose token to donate:
+1. APE
+2. USDT
+3. USDC`;
+          break;
+
+        case ["7*1", "7*2", "7*3"].includes(input): {
+          const tokenOpt = input.split("*")[1];
+          const token = getTokenName(tokenOpt);
+          try {
+            const balance = await ThirdwebService.getTokenBalance(
+              (user.smartWalletAddr || user.walletAddr) as Address,
+              token as TokenSymbol
+            );
+            response = `CON ❤️ Donate ${token}
+Available: ${balance} ${token}
+
+Enter amount to donate:`;
+          } catch (error) {
+            response = handleError("Failed to check balance. Please try again.");
+          }
           break;
         }
 
-        // Donate to Team
-        case input === "7": {
-          response = `CON Send APE, USDT or USDC token to support team:\n1. APE\n2. USDT\n3. USDC`;
-          break;
-        }
-
-        case input === "7*1" || input === "7*2" || input === "7*3": {
-          const token =
-            input === "7*1" ? "APE" : input === "7*2" ? "USDT" : "USDC";
-          response = `CON Enter amount of ${token} to donate to support team:`;
-          break;
-        }
-
-        case /^7\*[1-3]\*\d+(\.\d+)?$/.test(input): {
+        case /^7\*[1-3]\*[\d.]+$/.test(input): {
           const [_, tokenOpt, amountStr] = input.split("*");
-          const token =
-            tokenOpt === "1" ? "APE" : tokenOpt === "2" ? "USDT" : "USDC";
-          const rate = await PriceService.getTokenPriceInGHS(token);
-          const amount = Number(amountStr);
-          const value = (amount * rate).toFixed(2);
+          const token = getTokenName(tokenOpt);
+          const validation = validateAmount(amountStr);
 
-          // Check balance before proceeding
-          const balance = await ThirdwebService.getTokenBalance(
-            (user.smartWalletAddr || user.walletAddr) as Address,
-            token
-          );
-          if (Number(balance) < amount) {
-            response = `END Not enough ${token} tokens to fulfill transaction.`;
+          if (!validation.isValid) {
+            response = `CON ❌ ${validation.error}
+Please enter amount to donate:`;
             break;
           }
 
-          response = `CON Donating ${amount} ${token} (~GHS ${value}) to team\nEnter your 4-digit PIN:`;
+          try {
+            const balance = await ThirdwebService.getTokenBalance(
+              (user.smartWalletAddr || user.walletAddr) as Address,
+              token as TokenSymbol
+            );
+            
+            if (Number(balance) < validation.amount!) {
+              response = `CON ❌ Insufficient Balance
+Available: ${balance} ${token}
+Requested: ${validation.amount} ${token}
+
+1. Enter different amount`;
+              break;
+            }
+
+            const rate = await PriceService.getTokenPriceInGHS(token);
+            const value = (validation.amount! * rate).toFixed(2);
+
+            response = `CON ❤️ Confirm Donation
+Amount: ${validation.amount} ${token}
+Value: ~GHS ${value}
+To: Kudifi Team
+
+Enter your 4-digit PIN:`;
+          } catch (error) {
+            response = handleError("Failed to verify donation. Please try again.");
+          }
           break;
         }
 
-        case /^7\*[1-3]\*\d+(\.\d+)?\*\d{4}$/.test(input): {
+        case /^7\*[1-3]\*[\d.]+\*1$/.test(input): {
+          const [_, tokenOpt] = input.split("*");
+          const token = getTokenName(tokenOpt);
+          try {
+            const balance = await ThirdwebService.getTokenBalance(
+              (user.smartWalletAddr || user.walletAddr) as Address,
+              token as TokenSymbol
+            );
+            response = `CON ❤️ Donate ${token}
+Available: ${balance} ${token}
+
+Enter amount to donate:`;
+          } catch (error) {
+            response = handleError("Failed to check balance. Please try again.");
+          }
+          break;
+        }
+
+        case /^7\*[1-3]\*[\d.]+\*\d{4}$/.test(input): {
           const [_, tokenOpt, amountStr, pin] = input.split("*");
-          const tokenMap = { "1": "APE", "2": "USDT", "3": "USDC" } as const;
-          const token = tokenMap[tokenOpt as keyof typeof tokenMap];
-          const selectedToken = supportedTokensMap[token];
-          const amount = Number(amountStr);
+          const token = getTokenName(tokenOpt);
+          const selectedToken = supportedTokensMap[token as TokenSymbol];
+          const validation = validateAmount(amountStr);
+
+          if (!validation.isValid) {
+            response = handleError(validation.error!);
+            break;
+          }
 
           const retryKey = `pin-retry:${cleanPhone}`;
           const retryCount = parseInt((await redis.get(retryKey)) || "0");
 
           if (retryCount >= MAX_RETRIES) {
-            return `END Too many incorrect PIN attempts. Try again later.`;
+            response = handleError("Too many incorrect PIN attempts. Try again later.");
+            break;
           }
 
-          if (isNaN(amount) || amount <= 0) {
-            return `END Invalid amount.`;
+          try {
+            // Verify balance
+            const balance = await ThirdwebService.getTokenBalance(
+              (user.smartWalletAddr || user.walletAddr) as Address,
+              token as TokenSymbol
+            );
+            
+            if (Number(balance) < validation.amount!) {
+              response = handleError(`Insufficient ${token} balance for donation.`);
+              break;
+            }
+
+            // Verify PIN
+            const validPin = await bcrypt.compare(pin, user.pinHash!);
+            if (!validPin) {
+              await redis.setex(retryKey, 3600, (retryCount + 1).toString());
+              response = handleError(`Incorrect PIN. Attempt ${retryCount + 1} of ${MAX_RETRIES}`);
+              break;
+            }
+
+            await redis.del(retryKey);
+
+            // Execute donation
+            await ThirdwebService.sendToken({
+              from: (user.smartWalletAddr || user.walletAddr) as Address,
+              to: TEAM_WALLET_ADDRESS as Address,
+              tokenSymbol: selectedToken.symbol,
+              amount: toUnits(validation.amount!.toString(), selectedToken.decimals),
+            });
+
+            response = `END ❤️ Thank You!
+Donated: ${validation.amount} ${token}
+To: Kudifi Team
+
+Your support helps us improve Kudifi for everyone!`;
+          } catch (error) {
+            console.error("Donation error:", error);
+            response = handleError("Donation failed. Please try again.");
           }
-
-          // Double-check balance before PIN verification
-          const balance = await ThirdwebService.getTokenBalance(
-            (user.smartWalletAddr || user.walletAddr) as Address,
-            token
-          );
-          if (Number(balance) < amount) {
-            return `END Not enough ${token} tokens to fulfill transaction.`;
-          }
-
-          const validPin = await bcrypt.compare(pin, user.pinHash!);
-          if (!validPin) {
-            await redis.setex(retryKey, 3600, (retryCount + 1).toString());
-            return `END Incorrect PIN. Attempt ${
-              retryCount + 1
-            } of ${MAX_RETRIES}`;
-          }
-
-          await redis.del(retryKey);
-
-          await ThirdwebService.sendToken({
-            from: (user.smartWalletAddr || user.walletAddr) as Address,
-            to: TEAM_WALLET_ADDRESS as Address,
-            tokenSymbol: selectedToken.symbol,
-            amount: toUnits(amount.toString(), selectedToken.decimals),
-          });
-
-          response = `END Thank you for donating ${amount} ${token} to the team!`;
           break;
         }
 
         default:
-          response = `END Invalid option.`;
+          response = handleError("Invalid option. Please try again.");
       }
+
     } catch (error) {
       console.error("Error processing request:", error);
-      response = "An error occurred while processing your request.";
+      response = handleError("An unexpected error occurred. Please try again.");
     }
 
     return response;
