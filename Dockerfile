@@ -7,7 +7,7 @@ WORKDIR /app
 # Copy package files and .env first for better caching
 COPY package*.json ./
 COPY bun.lock ./
-COPY .env ./
+# COPY .env ./
 
 # Install dependencies (installs both deps and devDeps)
 RUN bun install
