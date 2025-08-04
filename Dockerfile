@@ -16,7 +16,7 @@ RUN bun install
 COPY . .
 
 # Run Prisma generate before building
-RUN bunx prisma generate --no-engine
+RUN bunx prisma generate 
 
 # Build your Bun app (e.g., transpile TS to JS if needed)
 # RUN bun build src/index.ts --outdir dist
