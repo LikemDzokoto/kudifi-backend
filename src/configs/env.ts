@@ -5,8 +5,8 @@ const envSchema = z.object({
   // thirdweb
   THIRDWEB_CLIENT_ID: z.string(),
   THIRDWEB_SECRET_KEY: z.string(),
-  // THIRDWEB_VAULT_ADMIN_KEY: z.string(),
-  // THIRDWEB_VAULT_ACCESS_TOKEN: z.string(),
+  THIRDWEB_VAULT_ADMIN_KEY: z.string(),
+  THIRDWEB_VAULT_ACCESS_TOKEN: z.string(),
 
   // upstash redis
   UPSTASH_REDIS_REST_URL: z.string(),

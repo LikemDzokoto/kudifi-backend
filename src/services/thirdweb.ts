@@ -27,7 +27,8 @@ export class ThirdwebService {
   public static async createWallet() {
     return await Engine.createServerWallet({
       client: thirdwebClient,
-      label: "Kudifi Account",
+      // label: "momo3",
+      label: `wallet-${Date.now()}`
     });
   }
 
@@ -35,7 +36,7 @@ export class ThirdwebService {
     return Engine.serverWallet({
       address,
       client: thirdwebClient,
-      vaultAccessToken: env.THIRDWEB_VAULT_ACCESS_TOKEN,
+      // vaultAccessToken: env.THIRDWEB_VAULT_ACCESS_TOKEN,
     });
   }
 
