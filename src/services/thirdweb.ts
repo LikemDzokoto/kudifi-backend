@@ -36,7 +36,7 @@ export class ThirdwebService {
     return Engine.serverWallet({
       address,
       client: thirdwebClient,
-      // vaultAccessToken: env.THIRDWEB_VAULT_ACCESS_TOKEN,
+      vaultAccessToken: env.THIRDWEB_VAULT_ACCESS_TOKEN,
     });
   }
 
@@ -62,7 +62,8 @@ export class ThirdwebService {
 
     // else get ERC20 token balance
     const contract = getContract({
-      address: token.addess,
+      // address: token.addess,
+      address:"0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee", 
       client: thirdwebClient,
       chain: apeChainCurtis,
     });
@@ -81,69 +82,133 @@ export class ThirdwebService {
     return toTokens(balance, token.decimals);
   }
 
-  public static async sendToken({
-    from,
-    to,
-    tokenSymbol,
-    amount,
-  }: {
-    from: Address;
-    to: Address;
-    tokenSymbol: TokenSymbol;
-    amount: bigint;
-  }) {
-    const wallet = this.getWallet(from);
-    const token = supportedTokensMap[tokenSymbol];
+  // public static async sendToken({
+  //   from,
+  //   to,
+  //   tokenSymbol,
+  //   amount,
+  // }: {
+  //   from: Address;
+  //   to: Address;
+  //   tokenSymbol: TokenSymbol;
+  //   amount: bigint;
+  // }) {
+  //   const wallet = this.getWallet(from);
+  //   const token = supportedTokensMap[tokenSymbol];
 
-    if (tokenSymbol === "APE") {
-      // send native token
-      const transaction = prepareTransaction({
-        to: to,
+  //   if (tokenSymbol === "APE") {
+  //     // send native token
+  //     const transaction = prepareTransaction({
+  //       to: to,
+  //       chain: apeChainCurtis,
+  //       client: thirdwebClient,
+  //       value: amount,
+  //       type: "legacy",
+  //     });
+
+  //     // enqueue the transaction to the wallet
+  //     const { transactionId } = await wallet.enqueueTransaction({
+  //       transaction,
+  //     });
+
+  //     // wait for the transaction to be executed
+  //     const { transactionHash } = await Engine.waitForTransactionHash({
+  //       client: thirdwebClient,
+  //       transactionId,
+  //     });
+
+  //     return transactionHash;
+  //   }
+
+  //   // else send ERC20 token
+  //   const contract = getContract({
+  //     address: token.addess,
+  //     client: thirdwebClient,
+  //     chain: apeChainCurtis,
+  //   });
+
+  //   // prepare the transaction
+  //   const transaction = prepareContractCall({
+  //     contract,
+  //     method: "function transfer(address to, uint256 amount) returns (bool)",
+  //     params: [to, amount],
+  //   });
+
+  //   // // enqueue the transaction to the wallet
+  //   // const { transactionId } = await wallet.enqueueTransaction({
+  //   //   transaction,
+
+  //   // });
+  //   console.log("Ape Chain ID:", apeChainCurtis.id);
+  //   const { transactionId } = await wallet.enqueueTransaction({
+  //     transaction,
+  //     executionOptions: {
+  //       type: "EIP7702",
+  //       chainId: apeChainCurtis.id,
+  //       sessionKeyAddress: wallet.address,
+  //       accountAddress: wallet.address,
+  //     },
+  //   });
+
+  //   // wait for the transaction to be executed
+  //   const { transactionHash } = await Engine.waitForTransactionHash({
+  //     client: thirdwebClient,
+  //     transactionId,
+  //   });
+
+  //   return transactionHash;
+  // }
+
+  public static async sendToken({
+  from,
+  to,
+  tokenSymbol,
+  amount,
+}: {
+  from: Address;
+  to: Address;
+  tokenSymbol: TokenSymbol;
+  amount: bigint;
+}) {
+  const wallet = this.getWallet(from);
+  const token = supportedTokensMap[tokenSymbol];
+  const isNativeToken = tokenSymbol === "APE";
+
+  const baseTransaction = isNativeToken
+    ? prepareTransaction({
+        to,
+        value: amount,
         chain: apeChainCurtis,
         client: thirdwebClient,
-        value: amount,
         type: "legacy",
+      })
+    : prepareContractCall({
+        contract: getContract({
+          // address: token.address,
+          address:  "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          client: thirdwebClient,
+          chain: apeChainCurtis,
+        }),
+        method: "function transfer(address to, uint256 amount) returns (bool)",
+        params: [to, amount],
       });
 
-      // enqueue the transaction to the wallet
-      const { transactionId } = await wallet.enqueueTransaction({
-        transaction,
-      });
+  const { transactionId } = await wallet.enqueueTransaction({
+    transaction: baseTransaction,
+    executionOptions: {
+      type: "EIP7702",
+      chainId: apeChainCurtis.id,
+      sessionKeyAddress: wallet.address,
+      accountAddress: wallet.address,
+    },
+  });
 
-      // wait for the transaction to be executed
-      const { transactionHash } = await Engine.waitForTransactionHash({
-        client: thirdwebClient,
-        transactionId,
-      });
+  const { transactionHash } = await Engine.waitForTransactionHash({
+    client: thirdwebClient,
+    transactionId,
+  });
 
-      return transactionHash;
-    }
+  return transactionHash;
+}
 
-    // else send ERC20 token
-    const contract = getContract({
-      address: token.addess,
-      client: thirdwebClient,
-      chain: apeChainCurtis,
-    });
-
-    // prepare the transaction
-    const transaction = prepareContractCall({
-      contract,
-      method: "function transfer(address to, uint256 amount) returns (bool)",
-      params: [to, amount],
-    });
-
-    // enqueue the transaction to the wallet
-    const { transactionId } = await wallet.enqueueTransaction({
-      transaction,
-    });
-
-    // wait for the transaction to be executed
-    const { transactionHash } = await Engine.waitForTransactionHash({
-      client: thirdwebClient,
-      transactionId,
-    });
-
-    return transactionHash;
-  }
 }

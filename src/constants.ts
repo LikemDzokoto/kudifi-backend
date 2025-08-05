@@ -5,7 +5,8 @@ import { defineChain, NATIVE_TOKEN_ADDRESS } from "thirdweb";
 export const supportedTokens = [
   {
     name: "ApeCoin",
-    addess: NATIVE_TOKEN_ADDRESS,
+    // address: NATIVE_TOKEN_ADDRESS,
+    address: "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
     symbol: "APE",
     decimals: 18,
   },
